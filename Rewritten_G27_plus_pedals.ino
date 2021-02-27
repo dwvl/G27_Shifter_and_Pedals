@@ -46,10 +46,14 @@
 #define BRAKE_AXIS_PIN     21
 
 // H-shifter mode analog axis thresholds
-#define HS_XAXIS_12        490 //Gears 1,2
-#define HS_XAXIS_56        620 //Gears 5,6, R
-#define HS_YAXIS_135       750 //Gears 1,3,5
-#define HS_YAXIS_246       390 //Gears 2,4,6, R
+#define HS_XAXIS_12_MIN       200 // Minumum reading when in Gears 1,2
+#define HS_XAXIS_12_MAX       430 // Maxumum reading when in Gears 1,2
+#define HS_XAXIS_34_MIN       460 // Minumum reading when in Gears 3,4
+#define HS_XAXIS_34_MAX       660 // Maxumum reading when in Gears 3,4
+#define HS_XAXIS_56_MIN       670 // Minumum reading when in Gears 5,6, R
+#define HS_XAXIS_56_MAX       900 // Maxumum reading when in Gears 5,6, R
+#define HS_YAXIS_135       700 // A bit away from neutral towards Gears 1,3,5
+#define HS_YAXIS_246       360 // A bit away from neutral towards Gears 2,4,6, R
 
 // Pedal limits
 #define ACCEL_FOOT_OFF_COUNTS     1010 //A-D counts
@@ -69,6 +73,9 @@ const float brakeGradient = (float)(BRAKE_FOOT_ON_OUTPUT - BRAKE_FOOT_OFF_OUTPUT
 
 int accelCounts = 512;    // current pedal positions
 int brakeCounts = 512;
+
+int x = 540;    // current shifter position - neutral(ish)
+int y = 510;
                           
 // Shifter serially-received buttons definitions
 #define DI_REVERSE         1
@@ -133,8 +140,8 @@ void setup()
   // Virtual joystick
   Joystick.begin(false);  // don't use autosend
   
-  // Virtual serial interface configuration - remove comment for debugging
-  // Serial.begin(38400);
+//  // Virtual serial interface configuration - remove comment for debugging
+//  Serial.begin(38400);
 
   // Virtual joystick initialization
   Joystick.setRudderRange(0, 1023);
@@ -170,23 +177,26 @@ void loop()
   }
 
   // Reading of shifter position
-  int x = analogRead(X_AXIS_PIN);                 // X axis
-  int y = analogRead(Y_AXIS_PIN);                 // Y axis
+  int xRaw = analogRead(X_AXIS_PIN);                 // X axis
+  int yRaw = analogRead(Y_AXIS_PIN);                 // Y axis
 
+  x += (float)(xRaw - x)*0.1;  // Low-pass filter noise
+  y += (float)(yRaw - y)*0.1;
+  
   // Current gear calculation
   int gear=0;                          // Default value is neutral
 
-  if(x<HS_XAXIS_12)                  // Shifter on the left?
+  if(x>HS_XAXIS_12_MIN and x<HS_XAXIS_12_MAX)       // Shifter on the left?
   {
     if(y>HS_YAXIS_135) gear=1;       // 1st gear
     if(y<HS_YAXIS_246) gear=2;       // 2nd gear
   }
-  else if(x>HS_XAXIS_56)             // Shifter on the right?
+  else if(x>HS_XAXIS_56_MIN and x<HS_XAXIS_56_MAX)  // Shifter on the right?
   {
     if(y>HS_YAXIS_135) gear=5;       // 5th gear
     if(y<HS_YAXIS_246) gear=6;       // 6th gear
   }
-  else                               // Shifter is in the middle
+  else if(x>HS_XAXIS_34_MIN and x<HS_XAXIS_34_MAX)  // Shifter is in the middle
   {
     if(y>HS_YAXIS_135) gear=3;       // 3rd gear
     if(y<HS_YAXIS_246) gear=4;       // 4th gear
@@ -263,7 +273,7 @@ void loop()
 //  Serial.print(" rB: ");
 //  Serial.print(brakeCountsRaw);
 //  Serial.print(" Shifter buttons: ");
-//  for(int i=0; i<16; i++)Serial.print(shifterButtons[i]);
+//  for(int i=0; i<16; i++) Serial.print(shifterButtons[i]);
 //  Serial.print("   Gear: ");
 //  Serial.print(gear);
 //  Serial.print(" A: ");
